@@ -245,13 +245,17 @@ export async function sendMessageToAI({
   // 1. If Gemini key is provided (Recommended default with multi-model failover)
   if (geminiKey && geminiKey.trim()) {
     try {
+      const selectedModel = (!geminiModel || geminiModel === 'gemini-3.1-pro-preview' || geminiModel.includes('-latest'))
+        ? 'gemini-2.5-flash'
+        : geminiModel;
+
       const res = await callGeminiAPI({
         apiKey: geminiKey.trim(),
-        model: geminiModel || 'gemini-3.1-pro-preview',
+        model: selectedModel,
         systemPrompt: fullSystemPrompt,
         messages
       });
-      res.engineType = `Gemini (${res.usedModel || 'Pro'}) (Real AI)`;
+      res.engineType = `Gemini (${res.usedModel || 'Flash'}) (Real AI)`;
       return res;
     } catch (e) {
       console.error("Gemini API call failed:", e);
@@ -342,31 +346,50 @@ export async function sendMessageToAI({
   };
 }
 
+// In-memory cache for discovered models to prevent repetitive slow network queries
+let cachedDiscoveredModels = null;
+let lastModelDiscoveryTime = 0;
+
 // Call Google Gemini API with dynamic model failover & discovery
 async function callGeminiAPI({ apiKey, model, systemPrompt, messages }) {
-  // 1. Try to discover live models for this key dynamically from Google API
-  let activeModels = [];
-  try {
-    const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
-    if (listRes.ok) {
-      const listData = await listRes.json();
-      if (Array.isArray(listData.models)) {
-        activeModels = listData.models
-          .filter(m => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes('generateContent'))
-          .map(m => m.name.replace(/^models\//, ''))
-          .filter(m => !DEPRECATED_GEMINI_MODELS.includes(m));
+  // 1. Cached dynamic discovery (valid for 15 minutes, max 2.5s timeout, never block chat)
+  const now = Date.now();
+  if (!cachedDiscoveredModels || now - lastModelDiscoveryTime > 15 * 60 * 1000) {
+    try {
+      const discoveryController = new AbortController();
+      const discoveryTimeout = setTimeout(() => discoveryController.abort(), 2500);
+      const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`, {
+        signal: discoveryController.signal
+      });
+      clearTimeout(discoveryTimeout);
+
+      if (listRes.ok) {
+        const listData = await listRes.json();
+        if (Array.isArray(listData.models)) {
+          cachedDiscoveredModels = listData.models
+            .filter(m => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes('generateContent'))
+            .map(m => m.name.replace(/^models\//, ''))
+            .filter(m => !DEPRECATED_GEMINI_MODELS.includes(m));
+          lastModelDiscoveryTime = now;
+        }
       }
+    } catch (e) {
+      console.warn('Fast discovery note (using guaranteed fast models):', e.message);
     }
-  } catch (e) {
-    console.warn('Could not query dynamic models list:', e);
   }
 
-  // 2. Build prioritized candidate queue (prioritize verified 2.5-flash and 1.5-flash)
+  // 2. Build prioritized candidate queue: ultra-fast flash models first!
+  const preferred = (model && model !== 'gemini-3.1-pro-preview' && !DEPRECATED_GEMINI_MODELS.includes(model))
+    ? model
+    : 'gemini-2.5-flash';
+
   const queue = [
-    model,
+    preferred,
     'gemini-2.5-flash',
     'gemini-1.5-flash',
-    ...activeModels,
+    'gemini-3.5-flash-lite',
+    'gemini-3.8-flash',
+    ...(cachedDiscoveredModels || []),
     ...GEMINI_MODEL_PRIORITY
   ].filter((m, i, arr) => 
     Boolean(m) &&
@@ -393,11 +416,18 @@ async function callGeminiAPI({ apiKey, model, systemPrompt, messages }) {
         }
       };
 
+      // Strict 7-second timeout per model so user NEVER experiences a freeze!
+      const abortController = new AbortController();
+      const timeoutId = setTimeout(() => abortController.abort(), 7000);
+
       const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify(requestBody),
+        signal: abortController.signal
       });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -428,7 +458,7 @@ async function callGeminiAPI({ apiKey, model, systemPrompt, messages }) {
       if (msg.includes('API_KEY_INVALID') || msg.includes('API key not valid')) {
         throw err;
       }
-      console.warn(`Model ${currentModel} execution error:`, err);
+      console.warn(`Model ${currentModel} timed out or failed:`, err.message);
       continue;
     }
   }

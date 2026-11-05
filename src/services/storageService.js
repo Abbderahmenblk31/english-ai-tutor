@@ -28,9 +28,15 @@ export const getSettings = () => {
   try {
     const data = localStorage.getItem(STORAGE_KEYS.SETTINGS);
     const parsed = data ? { ...DEFAULT_SETTINGS, ...JSON.parse(data) } : DEFAULT_SETTINGS;
-    // Auto-migrate sunset/deprecated models
-    const deprecated = ['gemini-2.0-flash', 'gemini-2.5-pro', 'gemini-1.5-pro-latest', 'gemini-1.5-flash-latest'];
-    if (!parsed.geminiModel || deprecated.includes(parsed.geminiModel)) {
+    // Auto-migrate sunset, deprecated, and heavy slow preview models to ultra-fast gemini-2.5-flash
+    const slowOrDeprecated = [
+      'gemini-3.1-pro-preview',
+      'gemini-2.0-flash',
+      'gemini-2.5-pro',
+      'gemini-1.5-pro-latest',
+      'gemini-1.5-flash-latest'
+    ];
+    if (!parsed.geminiModel || slowOrDeprecated.includes(parsed.geminiModel)) {
       parsed.geminiModel = 'gemini-2.5-flash';
     }
     return parsed;
