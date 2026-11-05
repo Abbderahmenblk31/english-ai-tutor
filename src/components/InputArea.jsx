@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Send, Mic, MicOff, Sparkles, AlertCircle, HelpCircle, Copy, Check, ExternalLink, Settings, Radio } from 'lucide-react';
 import { speechService } from '../services/speechService';
 
@@ -7,7 +7,9 @@ export default function InputArea({
   isLoading,
   settings = {},
   onOpenSettings,
-  uiLang = 'ar'
+  uiLang = 'ar',
+  prefillValue = '',
+  onClearPrefill
 }) {
   const [input, setInput] = useState('');
   const [isListening, setIsListening] = useState(false);
@@ -22,6 +24,17 @@ export default function InputArea({
   const textareaRef = useRef(null);
   const timerRef = useRef(null);
   const isRtl = uiLang === 'ar';
+
+  useEffect(() => {
+    if (prefillValue) {
+      setInput(prefillValue);
+      if (onClearPrefill) onClearPrefill();
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        textareaRef.current.scrollIntoView({ behavior: 'smooth' });
+      }
+    }
+  }, [prefillValue]);
 
   const handleSend = () => {
     if (isListening) {

@@ -9,6 +9,24 @@ CRITICAL INSTRUCTION:
 You MUST ALWAYS respond with a VALID JSON object matching the following structure ONLY:
 {
   "reply": "Your engaging, contextual conversational response in English. Respond directly and specifically to what the student just said. Ask a thoughtful follow-up question to keep the chat moving. Never repeat canned generic phrases.",
+  "replyAr": "الترجمة العربية الدقيقة والمبسطة لردك بالكامل أعلاه، لمساعدة الطالب على الفهم الكامل والدقيق لكل كلمة وسياق.",
+  "suggestedReplies": [
+    {
+      "text": "Natural, complete English response sentence the student could choose to answer or continue the topic.",
+      "textAr": "الترجمة العربية الواضحة لهذا الرد المقترح لمساعدة الطالب في حال نسيان الكلمات أو التردد في الإجابة.",
+      "intent": "direct" // "direct" | "alternative" | "clarify"
+    },
+    {
+      "text": "An alternative natural response exploring a different personal thought, experience, or opinion.",
+      "textAr": "الترجمة العربية للاقتراح الثاني للمواصلة.",
+      "intent": "alternative"
+    },
+    {
+      "text": "A polite follow-up question back to you (the tutor) or asking for explanation (e.g. Could you explain what you meant by... / What is your take on that?)",
+      "textAr": "صيغة سؤال ذكية للمواصلة في حال لم يفهم الطالب السؤال أو لم يجد إجابة محددة.",
+      "intent": "clarify"
+    }
+  ],
   "hasMistakes": true, // or false if user message was grammatically flawless
   "corrections": [
     {
@@ -292,6 +310,24 @@ export async function sendMessageToAI({
   // 5. NO API KEY CONFIGURED
   return {
     reply: "Welcome! To converse with me using real, unrestricted Gemini AI (without canned responses), please paste your free Google Gemini API key in the activation box above! It's 100% free with no credit card required.",
+    replyAr: "مرحباً بك! للمحادثة معي بذكاء اصطناعي حقيقي غير محدود ودون تكرار، يرجى لصق مفتاح Google Gemini المجاني في الصندوق بالأعلى! إنه مجاني 100% وبدون بطاقة بنكية.",
+    suggestedReplies: [
+      {
+        text: "How do I get my free Google Gemini API key?",
+        textAr: "كيف أحصل على مفتاح Gemini المجاني الخاص بي؟",
+        intent: "clarify"
+      },
+      {
+        text: "I want to practice my everyday conversational English.",
+        textAr: "أريد ممارسة التحدث باللغة الإنجليزية اليومية.",
+        intent: "direct"
+      },
+      {
+        text: "Could you tell me what topics we can practice today?",
+        textAr: "هل يمكنك إخباري بالمواضيع التي يمكننا التدرب عليها اليوم؟",
+        intent: "alternative"
+      }
+    ],
     hasMistakes: false,
     corrections: [],
     nativeAlternative: "Welcome aboard! Let's get your AI tutor activated.",
@@ -475,11 +511,20 @@ function parseJsonResponse(rawText) {
     } else if (clean.startsWith('```')) {
       clean = clean.replace(/^```\s*/, '').replace(/\s*```$/, '');
     }
-    return JSON.parse(clean);
+    const parsed = JSON.parse(clean);
+    if (!parsed.replyAr) {
+      parsed.replyAr = '';
+    }
+    if (!Array.isArray(parsed.suggestedReplies)) {
+      parsed.suggestedReplies = [];
+    }
+    return parsed;
   } catch (err) {
     console.error("Failed to parse JSON response:", rawText);
     return {
       reply: rawText.replace(/[{}"[\]]/g, ''),
+      replyAr: '',
+      suggestedReplies: [],
       hasMistakes: false,
       corrections: [],
       nativeAlternative: "",
@@ -488,4 +533,61 @@ function parseJsonResponse(rawText) {
       cefrLevel: "B2"
     };
   }
+}
+
+/**
+ * On-demand instant translation helper:
+ * Translates any English text into natural Arabic using Gemini API (or zero-key fallback)
+ */
+export async function translateTextToAr(text, settings = {}) {
+  if (!text || !text.trim()) return '';
+
+  const { geminiKey, geminiModel } = settings;
+
+  // 1. Try Gemini API first if key exists
+  if (geminiKey && geminiKey.trim()) {
+    try {
+      const queue = [geminiModel || 'gemini-3.1-pro-preview', ...GEMINI_MODEL_PRIORITY]
+        .filter((m, i, arr) => Boolean(m) && arr.indexOf(m) === i && !DEPRECATED_GEMINI_MODELS.includes(m));
+
+      const prompt = `Translate the following English conversation sentence accurately into clear, natural Arabic. Return ONLY the Arabic translation without quotes or extra words:\n\n${text}`;
+
+      for (const model of queue) {
+        try {
+          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey.trim()}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ role: 'user', parts: [{ text: prompt }] }]
+            })
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            const translated = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+            if (translated) return translated;
+          }
+        } catch {
+          // try next model
+        }
+      }
+    } catch (e) {
+      console.warn('Gemini translate failed, trying fallback:', e);
+    }
+  }
+
+  // 2. High-speed free fallback translation service (MyMemory)
+  try {
+    const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text.slice(0, 500))}&langpair=en|ar`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.responseData?.translatedText) {
+        return data.responseData.translatedText;
+      }
+    }
+  } catch (e) {
+    console.warn('Free fallback translation failed:', e);
+  }
+
+  return 'تعذر إتمام الترجمة حالياً، يرجى المحاولة لاحقاً.';
 }

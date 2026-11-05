@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { Volume2, VolumeX, Sparkles, User, RefreshCw, AlertCircle, Headphones, Key, ExternalLink, CheckCircle2, ArrowUp, ArrowDown, Trash2 } from 'lucide-react';
+import { Volume2, VolumeX, Sparkles, User, RefreshCw, AlertCircle, Headphones, Key, ExternalLink, CheckCircle2, ArrowUp, ArrowDown, Trash2, Languages, Globe } from 'lucide-react';
 import CorrectionCard from './CorrectionCard';
-import { testGeminiKey } from '../services/aiService';
+import { testGeminiKey, translateTextToAr } from '../services/aiService';
 
 export default function ChatWindow({
   messages,
@@ -18,6 +18,7 @@ export default function ChatWindow({
   accent,
   uiLang = 'ar',
   onSelectPrompt,
+  onPrefillInput,
   settings = {},
   onUpdateSettings,
   onResetChat,
@@ -34,9 +35,33 @@ export default function ChatWindow({
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
 
+  // Arabic Translation State
+  const [openTranslations, setOpenTranslations] = useState({});
+  const [translationCache, setTranslationCache] = useState({});
+  const [translatingIds, setTranslatingIds] = useState({});
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
+
+  const handleToggleTranslate = async (msg) => {
+    const isCurrentlyOpen = !!openTranslations[msg.id];
+    setOpenTranslations(prev => ({ ...prev, [msg.id]: !isCurrentlyOpen }));
+
+    // If opening and no translation available yet, fetch it dynamically
+    const existing = msg.translation || msg.feedback?.replyAr || translationCache[msg.id];
+    if (!isCurrentlyOpen && !existing && !translatingIds[msg.id]) {
+      setTranslatingIds(prev => ({ ...prev, [msg.id]: true }));
+      try {
+        const translated = await translateTextToAr(msg.content, settings);
+        setTranslationCache(prev => ({ ...prev, [msg.id]: translated }));
+      } catch (e) {
+        console.error('Translation error:', e);
+      } finally {
+        setTranslatingIds(prev => ({ ...prev, [msg.id]: false }));
+      }
+    }
+  };
 
   const handleScroll = (e) => {
     const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
@@ -287,9 +312,16 @@ export default function ChatWindow({
 
       {/* Messages List */}
       <div className="mx-auto max-w-3xl space-y-6">
-        {messages.map((msg) => {
+        {messages.map((msg, idx) => {
           const isUser = msg.role === 'user';
           const isCurrentlySpeaking = speakingMessageId === msg.id;
+          const isLatestAssistant = !isUser && idx === messages.length - 1;
+
+          // Determine suggested replies for this latest message
+          const candidateReplies = msg.suggestedReplies || msg.feedback?.suggestedReplies || [];
+          const displayReplies = isLatestAssistant && candidateReplies.length > 0
+            ? candidateReplies
+            : (isLatestAssistant && activeTopic?.suggestedReplies ? activeTopic.suggestedReplies : []);
 
           return (
             <div
@@ -323,47 +355,152 @@ export default function ChatWindow({
                       {msg.content}
                     </p>
 
-                    {/* Audio Playback button for AI response */}
+                    {/* Audio Playback & Arabic Translation button for AI response */}
                     {!isUser && (
-                      <div className="mt-2.5 pt-2 border-t border-slate-800/80 flex items-center justify-between" dir={isRtl ? 'rtl' : 'ltr'}>
-                        <button
-                          onClick={() => {
-                            if (isCurrentlySpeaking) {
-                              onStopSpeech();
-                            } else {
-                              onPlaySpeech(msg.id, msg.content, activePersona);
-                            }
-                          }}
-                          className={`flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-lg transition ${
-                            isCurrentlySpeaking
-                              ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                              : 'text-slate-400 hover:text-indigo-300 hover:bg-slate-800'
-                          }`}
-                        >
-                          {isCurrentlySpeaking ? (
-                            <>
-                              <VolumeX className="w-3.5 h-3.5" />
-                              <span>{isRtl ? 'إيقاف الصوت' : 'Stop'}</span>
-                              <span className="flex items-center gap-0.5 ml-1">
-                                <span className="w-1 h-3 bg-rose-400 rounded-full wave-bar-1" />
-                                <span className="w-1 h-4 bg-rose-400 rounded-full wave-bar-2" />
-                                <span className="w-1 h-2 bg-rose-400 rounded-full wave-bar-3" />
-                              </span>
-                            </>
-                          ) : (
-                            <>
-                              <Volume2 className="w-3.5 h-3.5 text-indigo-400" />
-                              <span>{isRtl ? `استمع لصوت ${activePersona.name}` : 'Listen'}</span>
-                            </>
-                          )}
-                        </button>
+                      <div className="mt-2.5 pt-2 border-t border-slate-800/80 flex items-center justify-between flex-wrap gap-2" dir={isRtl ? 'rtl' : 'ltr'}>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => {
+                              if (isCurrentlySpeaking) {
+                                onStopSpeech();
+                              } else {
+                                onPlaySpeech(msg.id, msg.content, activePersona);
+                              }
+                            }}
+                            className={`flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-lg transition ${
+                              isCurrentlySpeaking
+                                ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                                : 'text-slate-400 hover:text-indigo-300 hover:bg-slate-800'
+                            }`}
+                          >
+                            {isCurrentlySpeaking ? (
+                              <>
+                                <VolumeX className="w-3.5 h-3.5" />
+                                <span>{isRtl ? 'إيقاف الصوت' : 'Stop'}</span>
+                                <span className="flex items-center gap-0.5 ml-1">
+                                  <span className="w-1 h-3 bg-rose-400 rounded-full wave-bar-1" />
+                                  <span className="w-1 h-4 bg-rose-400 rounded-full wave-bar-2" />
+                                  <span className="w-1 h-2 bg-rose-400 rounded-full wave-bar-3" />
+                                </span>
+                              </>
+                            ) : (
+                              <>
+                                <Volume2 className="w-3.5 h-3.5 text-indigo-400" />
+                                <span>{isRtl ? `استمع` : 'Listen'}</span>
+                              </>
+                            )}
+                          </button>
+
+                          {/* 🇸🇦 Arabic Translation Toggle Button */}
+                          <button
+                            onClick={() => handleToggleTranslate(msg)}
+                            className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg border transition ${
+                              openTranslations[msg.id]
+                                ? 'bg-indigo-600/30 text-indigo-300 border-indigo-500/50'
+                                : 'bg-slate-950/60 text-slate-300 border-slate-800 hover:border-indigo-500/40 hover:text-white'
+                            }`}
+                            title={openTranslations[msg.id] ? (isRtl ? 'إخفاء الترجمة' : 'Hide translation') : (isRtl ? 'ترجمة الرد بالعربية' : 'Translate to Arabic')}
+                          >
+                            <Languages className="w-3.5 h-3.5 text-indigo-400" />
+                            <span>{openTranslations[msg.id] ? (isRtl ? 'إخفاء الترجمة' : 'Hide') : (isRtl ? '🇸🇦 ترجمة بالعربية' : 'Translate')}</span>
+                          </button>
+                        </div>
 
                         <span className="text-[10px] text-slate-500 font-mono" dir="ltr">
                           {new Date(msg.timestamp || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
                     )}
+
+                    {/* Inline Translation View */}
+                    {!isUser && openTranslations[msg.id] && (
+                      <div className="mt-2.5 rounded-xl bg-indigo-950/40 border border-indigo-500/30 p-2.5 text-xs text-indigo-200 animate-in fade-in" dir="rtl">
+                        <div className="flex items-center justify-between gap-2 mb-1.5">
+                          <span className="flex items-center gap-1.5 font-bold text-indigo-300 text-[11px]">
+                            <Globe className="w-3.5 h-3.5 text-indigo-400" />
+                            <span>الترجمة بالعربية:</span>
+                          </span>
+                        </div>
+                        {translatingIds[msg.id] ? (
+                          <p className="text-slate-400 italic text-[11px] flex items-center gap-1.5">
+                            <Sparkles className="w-3 h-3 animate-spin text-indigo-400" />
+                            <span>جاري الترجمة الفورية...</span>
+                          </p>
+                        ) : (
+                          <p className="text-slate-100 leading-relaxed font-sans text-xs">
+                            {translationCache[msg.id] || msg.translation || msg.feedback?.replyAr || "تعذر العثور على ترجمة"}
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
+
+                  {/* Contextual Suggested Replies Tray to Keep Conversation Flowing */}
+                  {isLatestAssistant && displayReplies.length > 0 && !isLoading && (
+                    <div className="mt-3.5 rounded-2xl bg-gradient-to-br from-indigo-950/70 via-slate-900/95 to-purple-950/50 border border-indigo-500/30 p-4 shadow-xl space-y-3 animate-in fade-in slide-in-from-bottom-2">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="w-4 h-4 text-amber-400" />
+                          <span className="text-xs font-extrabold text-white">
+                            {isRtl ? '💡 محتار ماذا تجيب؟ إليك احتمالات لمواصلة المحادثة:' : '💡 Not sure what to say? Ideas to continue:'}
+                          </span>
+                        </div>
+                        <span className="text-[10px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-2 py-0.5 rounded-full font-semibold">
+                          {isRtl ? 'انقر للاختيار أو النطق' : 'Pick to say or send'}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-2.5">
+                        {displayReplies.map((reply, rIdx) => (
+                          <div
+                            key={rIdx}
+                            className="group rounded-xl border border-slate-800 bg-slate-950/80 p-3 hover:border-indigo-500/50 hover:bg-slate-900 transition flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm"
+                          >
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs text-white font-medium text-left font-sans flex items-start gap-2" dir="ltr">
+                                <span className="text-indigo-400 font-mono text-[11px] font-bold shrink-0 mt-0.5">{rIdx + 1}.</span>
+                                <span className="group-hover:text-indigo-200 transition">"{reply.text}"</span>
+                              </p>
+                              {reply.textAr && (
+                                <p className="text-[11px] text-slate-400 mt-1.5 text-right font-sans" dir="rtl">
+                                  🇸🇦 {reply.textAr}
+                                </p>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
+                              {/* Listen to pronunciation */}
+                              <button
+                                onClick={() => onPlaySpeech(`reply_${rIdx}`, reply.text, activePersona)}
+                                className="p-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-indigo-300 border border-slate-800 transition"
+                                title={isRtl ? 'استمع لنطق هذا الرد' : 'Listen'}
+                              >
+                                <Volume2 className="w-3.5 h-3.5" />
+                              </button>
+
+                              {/* Put in input box to edit or speak with mic */}
+                              <button
+                                onClick={() => onPrefillInput ? onPrefillInput(reply.text) : onSelectPrompt(reply.text)}
+                                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 text-xs font-semibold transition"
+                                title={isRtl ? 'وضع في مربع النص للتعديل أو النطق بالمايك' : 'Put into input'}
+                              >
+                                <span>{isRtl ? '✏️ تعديل / نطق' : 'Edit / Speak'}</span>
+                              </button>
+
+                              {/* Send directly */}
+                              <button
+                                onClick={() => onSelectPrompt(reply.text)}
+                                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-md shadow-indigo-600/25 transition"
+                                title={isRtl ? 'إرسال هذا الرد فوراً' : 'Send now'}
+                              >
+                                <span>{isRtl ? 'إرسال ➔' : 'Send ➔'}</span>
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* If user message has AI grammar & phrasing feedback */}
                   {isUser && msg.feedback && (
@@ -402,31 +539,6 @@ export default function ChatWindow({
                 <div className="w-2 h-2 rounded-full bg-indigo-500 animate-bounce [animation-delay:0.2s]" />
                 <div className="w-2 h-2 rounded-full bg-indigo-500 animate-bounce [animation-delay:0.4s]" />
               </div>
-            </div>
-          </div>
-        )}
-
-        {/* Empty state suggestions */}
-        {messages.length <= 1 && !isLoading && (
-          <div className="pt-4">
-            <p className="text-xs text-slate-400 mb-2 font-medium">
-              💡 {isRtl ? 'اقتراحات لبدء المحادثة بنقرة واحدة:' : 'Starter suggestions:'}
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {starterSuggestions.map((s, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => onSelectPrompt(s.text)}
-                  className="rounded-2xl border border-slate-800 bg-slate-900/70 p-3.5 text-left hover:border-indigo-500/50 hover:bg-slate-800/70 transition group text-xs flex flex-col justify-between"
-                >
-                  <p className="text-slate-200 group-hover:text-indigo-300 font-medium text-left font-sans" dir="ltr">
-                    "{s.text}"
-                  </p>
-                  <p className="text-[11px] text-slate-400 mt-2 text-right w-full" dir="rtl">
-                    {isRtl ? s.textAr : ''}
-                  </p>
-                </button>
-              ))}
             </div>
           </div>
         )}

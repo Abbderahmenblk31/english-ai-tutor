@@ -42,6 +42,7 @@ export default function App() {
   const [isVocabOpen, setIsVocabOpen] = useState(false);
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
   const [resetToast, setResetToast] = useState(false);
+  const [inputPrefill, setInputPrefill] = useState('');
 
   const chatKey = `${activePersona.id}_${activeTopic.id}`;
 
@@ -56,6 +57,8 @@ export default function App() {
         id: 'initial_msg',
         role: 'assistant',
         content: activeTopic.starter || `Hello! I am ${activePersona.name}. Ready for today's English conversation practice? Let's start!`,
+        translation: activeTopic.starterAr || "مرحباً بك! أنا أستاذك لممارسة الإنجليزية اليوم. هل أنت جاهز للبدء؟",
+        suggestedReplies: activeTopic.suggestedReplies || [],
         timestamp: Date.now()
       };
       setMessages([initialGreeting]);
@@ -127,6 +130,8 @@ export default function App() {
         id: assistantMsgId,
         role: 'assistant',
         content: aiResponse.reply || "I heard you! Let's keep exploring.",
+        translation: aiResponse.replyAr || null,
+        suggestedReplies: aiResponse.suggestedReplies || [],
         feedback: aiResponse,
         timestamp: Date.now()
       };
@@ -184,6 +189,8 @@ export default function App() {
       id: `initial_${Date.now()}`,
       role: 'assistant',
       content: activeTopic.starter || `Hello! I am ${activePersona.name}. Ready for today's English conversation practice? Let's start!`,
+      translation: activeTopic.starterAr || "مرحباً بك! أنا أستاذك لممارسة الإنجليزية اليوم. هل أنت جاهز للبدء؟",
+      suggestedReplies: activeTopic.suggestedReplies || [],
       timestamp: Date.now()
     };
     setMessages([initial]);
@@ -276,6 +283,7 @@ export default function App() {
           accent={activePersona.accent || settings.accent}
           uiLang={settings.uiLanguage}
           onSelectPrompt={(prompt) => handleSendMessage(prompt)}
+          onPrefillInput={(text) => setInputPrefill(text)}
           settings={settings}
           onUpdateSettings={handleUpdateSettings}
           onResetChat={() => setIsResetConfirmOpen(true)}
@@ -288,6 +296,8 @@ export default function App() {
           settings={settings}
           onOpenSettings={() => setIsSettingsOpen(true)}
           uiLang={settings.uiLanguage}
+          prefillValue={inputPrefill}
+          onClearPrefill={() => setInputPrefill('')}
         />
       </div>
 
