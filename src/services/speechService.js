@@ -214,10 +214,14 @@ class SpeechService {
     return this.currentSpeechId;
   }
 
+  hasSpeechRecognition() {
+    return Boolean(this.recognition);
+  }
+
   // Web Speech Recognition
   startListening({ onResult, onInterim, onEnd, onError, lang = 'en-US' } = {}) {
     if (!this.recognition) {
-      if (onError) onError({ code: 'not-supported', message: 'خاصية التعرف على الصوت غير مدعومة في هذا المتصفح. يرجى تجربة Google Chrome أو Microsoft Edge.' });
+      if (onError) onError({ code: 'not-supported', message: 'خاصية التعرف على الصوت غير مدعومة في هذا المتصفح. سيتم التحويل تلقائياً للتسجيل الصوتي المباشر.' });
       return false;
     }
 
@@ -232,7 +236,9 @@ class SpeechService {
         // ignore
       }
 
-      this.recognition.continuous = true;
+      const isMobile = typeof navigator !== 'undefined' && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+      // On mobile browsers, continuous mode causes premature aborts and crashes; disable continuous on mobile
+      this.recognition.continuous = !isMobile;
       this.recognition.interimResults = true;
       this.recognition.lang = lang;
 
@@ -307,19 +313,48 @@ class SpeechService {
     }
   }
 
-  // MediaRecorder Fallback (HTML5 Microphone capture for Whisper)
+  // MediaRecorder Fallback (HTML5 Microphone capture for Mobile & WebViews)
   async startMediaRecorder({ onStart, onError } = {}) {
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error('MediaDevices API not supported');
+        throw new Error('متصفحك أو التطبيق لا يدعم واجهة الوصول إلى المايكروفون (MediaDevices)');
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        } 
+      });
+
       this.audioChunks = [];
-      this.mediaRecorder = new MediaRecorder(stream);
+
+      // Determine the best supported audio MIME type across Android and iOS Safari
+      let selectedMimeType = '';
+      if (typeof MediaRecorder !== 'undefined') {
+        const candidates = [
+          'audio/webm;codecs=opus',
+          'audio/webm',
+          'audio/mp4',
+          'audio/aac',
+          'audio/ogg'
+        ];
+        for (const type of candidates) {
+          if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(type)) {
+            selectedMimeType = type;
+            break;
+          }
+        }
+      }
+
+      this.currentMimeType = selectedMimeType;
+      this.mediaRecorder = selectedMimeType 
+        ? new MediaRecorder(stream, { mimeType: selectedMimeType })
+        : new MediaRecorder(stream);
 
       this.mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
+        if (event.data && event.data.size > 0) {
           this.audioChunks.push(event.data);
         }
       };
@@ -329,7 +364,7 @@ class SpeechService {
         if (onStart) onStart();
       };
 
-      this.mediaRecorder.start();
+      this.mediaRecorder.start(250); // collect data every 250ms
       return true;
     } catch (err) {
       console.error('Error accessing microphone for recording:', err);
@@ -347,19 +382,98 @@ class SpeechService {
       }
 
       this.mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(this.audioChunks, { type: 'audio/webm' });
+        const mime = this.currentMimeType || this.mediaRecorder.mimeType || 'audio/webm';
+        const audioBlob = new Blob(this.audioChunks, { type: mime });
         this.audioChunks = [];
         this.isMediaRecording = false;
         
         if (this.mediaRecorder.stream) {
-          this.mediaRecorder.stream.getTracks().forEach(track => track.stop());
+          this.mediaRecorder.stream.getTracks().forEach(track => {
+            try { track.stop(); } catch (e) {}
+          });
         }
 
         resolve(audioBlob);
       };
 
-      this.mediaRecorder.stop();
+      try {
+        this.mediaRecorder.stop();
+      } catch (e) {
+        this.isMediaRecording = false;
+        resolve(null);
+      }
     });
+  }
+
+  // Convert blob to base64 helper
+  blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const res = reader.result;
+        if (typeof res === 'string') {
+          const base64 = res.split(',')[1];
+          resolve(base64);
+        } else {
+          reject(new Error('Failed to convert blob to base64'));
+        }
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  // Transcribe audio using Google Gemini multimodal audio recognition
+  async transcribeWithGemini(audioBlob, geminiKey) {
+    if (!geminiKey || !geminiKey.trim()) {
+      throw new Error('مفتاح Gemini API غير متوفر');
+    }
+
+    const base64Audio = await this.blobToBase64(audioBlob);
+    let mimeType = audioBlob.type || 'audio/webm';
+    if (mimeType.includes(';')) {
+      mimeType = mimeType.split(';')[0];
+    }
+
+    const modelsToTry = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-3.5-flash-lite'];
+    let lastError = null;
+
+    for (const model of modelsToTry) {
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey.trim()}`;
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{
+              role: 'user',
+              parts: [
+                { text: 'Listen to this spoken English voice recording and transcribe the speech accurately. Return ONLY the transcribed English text, without markdown, preamble, or quotation marks.' },
+                {
+                  inlineData: {
+                    mimeType: mimeType,
+                    data: base64Audio
+                  }
+                }
+              ]
+            }]
+          })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
+          if (text) return text;
+        } else {
+          const errData = await response.json().catch(() => ({}));
+          lastError = new Error(errData.error?.message || `HTTP ${response.status}`);
+        }
+      } catch (err) {
+        lastError = err;
+      }
+    }
+
+    throw lastError || new Error('فشل تفريغ الصوت عبر Gemini API');
   }
 
   // Transcribe audio blob using Groq Whisper
