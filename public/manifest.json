@@ -1,24 +1,33 @@
 {
-  "short_name": "Fluently AI",
+  "id": "/",
   "name": "Fluently AI - English Conversation Tutor",
+  "short_name": "Fluently AI",
   "description": "Smart AI English Conversation Tutor & Real-time Speaking Partner",
-  "icons": [
-    {
-      "src": "/app-icon.png",
-      "type": "image/png",
-      "sizes": "512x512",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/app-icon.png",
-      "type": "image/png",
-      "sizes": "192x192"
-    }
-  ],
   "start_url": "/",
-  "background_color": "#020617",
-  "theme_color": "#4f46e5",
+  "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "scope": "/"
+  "background_color": "#020617",
+  "theme_color": "#020617",
+  "categories": ["education", "productivity"],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
 }
