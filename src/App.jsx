@@ -246,7 +246,9 @@ export default function App() {
         }}
         userLevel={settings.userLevel || 'Intermediate'}
         onChangeLevel={(level) => handleUpdateSettings({ userLevel: level })}
-        onResetChat={handleResetChat}
+        onResetChat={() => setIsResetConfirmOpen(true)}
+        onOpenSettings={() => setIsSettingsOpen(true)}
+        onOpenVocabulary={() => setIsVocabOpen(true)}
         stats={stats}
         uiLang={settings.uiLanguage}
       />

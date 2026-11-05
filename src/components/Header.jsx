@@ -34,37 +34,43 @@ export default function Header({
   const providerLabel = getProviderInfo();
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-slate-800 bg-slate-950/80 px-4 backdrop-blur-xl transition-all">
+    <header className="sticky top-0 z-30 flex h-14 sm:h-16 w-full items-center justify-between border-b border-slate-800 bg-slate-950/90 px-2.5 sm:px-4 backdrop-blur-xl transition-all">
       {/* Left side: Menu button + Logo */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
         <button
           onClick={onToggleSidebar}
-          className="rounded-xl p-2 text-slate-400 hover:bg-slate-800 hover:text-white transition lg:hidden"
-          title="Toggle Navigation"
+          className="rounded-xl p-1.5 sm:p-2 text-slate-400 hover:bg-slate-800 hover:text-white transition lg:hidden"
+          title="القائمة الجانبية"
         >
           <Menu className="w-5 h-5" />
         </button>
 
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-purple-500 shadow-lg shadow-indigo-500/20">
-            <Sparkles className="w-5 h-5 text-white" />
+        <div className="flex items-center gap-2">
+          <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-purple-500 shadow-md shadow-indigo-500/20 shrink-0">
+            <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
           </div>
           <div>
-            <div className="flex items-center gap-1.5">
-              <span className="font-extrabold text-base tracking-tight text-white">Fluently AI</span>
-              <span className="rounded-full bg-indigo-500/20 px-2 py-0.2 text-[10px] font-semibold text-indigo-400 border border-indigo-500/30">
-                PRO
+            <div className="flex items-center gap-1">
+              <span className="font-extrabold text-sm sm:text-base tracking-tight text-white">Fluently</span>
+              <span className="rounded-full bg-indigo-500/20 px-1.5 py-0.2 text-[9px] sm:text-[10px] font-bold text-indigo-400 border border-indigo-500/30">
+                AI
               </span>
             </div>
-            <p className="text-[11px] text-slate-400 hidden sm:block">
-              {isRtl ? 'أستاذ الإنجليزية الذكي ومصحح المحادثة الفوري' : 'AI English Conversation Tutor & Corrector'}
+            <p className="text-[10px] text-slate-400 hidden xl:block">
+              {isRtl ? 'أستاذ الإنجليزية الذكي ومصحح المحادثة الفوري' : 'AI English Conversation Tutor'}
             </p>
           </div>
         </div>
       </div>
 
-      {/* Center: Daily Streak & Goal Progress */}
-      <div className="hidden md:flex items-center gap-4 bg-slate-900/60 border border-slate-800/80 rounded-full px-4 py-1.5">
+      {/* Center: Mobile Compact Streak Badge */}
+      <div className="flex md:hidden items-center gap-1 bg-slate-900/80 border border-slate-800 rounded-full px-2 py-0.5 text-xs font-bold text-orange-400 shrink-0 shadow-sm" title="أيام الممارسة المتتالية">
+        <Flame className="w-3.5 h-3.5 text-orange-500 animate-bounce" />
+        <span>{stats.streakDays || 1}</span>
+      </div>
+
+      {/* Center: Desktop Full Streak & Goal Progress */}
+      <div className="hidden md:flex items-center gap-3 lg:gap-4 bg-slate-900/60 border border-slate-800/80 rounded-full px-3.5 py-1.5 shrink-0">
         <div className="flex items-center gap-1.5" title="أيام الممارسة المتتالية">
           <Flame className="w-4 h-4 text-orange-500 animate-bounce" />
           <span className="text-xs font-bold text-orange-400">
@@ -78,7 +84,7 @@ export default function Header({
           <span className="text-xs text-slate-400">
             {isRtl ? 'الهدف اليومي:' : 'Daily Goal:'}
           </span>
-          <div className="w-20 bg-slate-800 rounded-full h-2 overflow-hidden">
+          <div className="w-16 lg:w-20 bg-slate-800 rounded-full h-2 overflow-hidden">
             <div
               className="bg-gradient-to-r from-indigo-500 to-emerald-400 h-2 rounded-full transition-all duration-500"
               style={{ width: `${Math.min(100, ((stats.dailyProgress || 0) / (stats.dailyGoal || 10)) * 100)}%` }}
@@ -91,11 +97,11 @@ export default function Header({
       </div>
 
       {/* Right side: Provider badge, Vocabulary Vault, Sound, Language, Settings */}
-      <div className="flex items-center gap-2">
-        {/* Provider Indicator */}
+      <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+        {/* Provider Indicator (Desktop only) */}
         <button
           onClick={onOpenSettings}
-          className={`hidden sm:flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium border transition hover:opacity-80 ${providerLabel.color}`}
+          className={`hidden lg:flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium border transition hover:opacity-80 ${providerLabel.color}`}
           title="انقر لتعديل إعدادات الذكاء الاصطناعي والمفاتيح"
         >
           <span className="h-1.5 w-1.5 rounded-full bg-current animate-ping" />
@@ -105,13 +111,13 @@ export default function Header({
         {/* Vocabulary Vault Button */}
         <button
           onClick={onOpenVocabulary}
-          className="relative flex items-center gap-1.5 rounded-xl bg-slate-900 border border-slate-800 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition"
+          className="relative flex items-center justify-center rounded-xl bg-slate-900 border border-slate-800 p-2 sm:px-2.5 sm:py-2 text-xs font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition"
           title={isRtl ? 'سجل الكلمات والمفردات المحفوظة' : 'Vocabulary Vault'}
         >
           <BookMarked className="w-4 h-4 text-purple-400" />
-          <span className="hidden sm:inline">{isRtl ? 'المفردات' : 'Vault'}</span>
+          <span className="hidden sm:inline mr-1">{isRtl ? 'المفردات' : 'Vault'}</span>
           {savedWordsCount > 0 && (
-            <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-purple-500 px-1 text-[10px] font-bold text-white">
+            <span className="absolute -top-1 -right-1 sm:static sm:mr-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-purple-500 px-1 text-[9px] font-bold text-white shadow">
               {savedWordsCount}
             </span>
           )}
@@ -133,21 +139,21 @@ export default function Header({
         {/* Language switch */}
         <button
           onClick={onToggleLanguage}
-          className="flex items-center gap-1 rounded-xl bg-slate-900 border border-slate-800 px-2.5 py-2 text-xs font-bold text-slate-300 hover:bg-slate-800 hover:text-white transition"
+          className="flex items-center gap-1 rounded-xl bg-slate-900 border border-slate-800 px-2 py-1.5 sm:px-2.5 sm:py-2 text-xs font-bold text-slate-300 hover:bg-slate-800 hover:text-white transition"
           title="Toggle Interface Language"
         >
           <Globe className="w-3.5 h-3.5 text-indigo-400" />
-          <span>{settings.uiLanguage === 'ar' ? 'EN' : 'عربي'}</span>
+          <span className="text-[11px]">{settings.uiLanguage === 'ar' ? 'EN' : 'عربي'}</span>
         </button>
 
-        {/* Clear Chat Button */}
+        {/* Clear Chat Button (Visible on screens from tablet up; on mobile it is in the chat banner and drawer!) */}
         <button
           onClick={onResetChat}
-          className="flex items-center gap-1.5 rounded-xl bg-slate-900 border border-slate-800 px-2.5 py-2 text-xs font-semibold text-rose-400 hover:bg-rose-500/15 hover:border-rose-500/40 hover:text-rose-300 transition shadow-sm"
+          className="hidden sm:flex items-center gap-1 rounded-xl bg-slate-900 border border-slate-800 px-2.5 py-2 text-xs font-semibold text-rose-400 hover:bg-rose-500/15 hover:border-rose-500/40 hover:text-rose-300 transition shadow-sm"
           title={isRtl ? 'فسخ المحادثة والبدء من جديد' : 'Clear Chat & Start Fresh'}
         >
           <Trash2 className="w-4 h-4 text-rose-400" />
-          <span className="hidden md:inline">{isRtl ? 'فسخ المحادثة' : 'Clear'}</span>
+          <span className="hidden md:inline">{isRtl ? 'فسخ' : 'Clear'}</span>
         </button>
 
         {/* Settings button */}

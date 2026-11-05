@@ -1,7 +1,7 @@
 import React from 'react';
 import { PERSONAS } from '../data/personas';
 import { TOPICS } from '../data/topics';
-import { Users, Compass, Award, RotateCcw, X, Mic2, Sparkles, BookOpen } from 'lucide-react';
+import { Users, Compass, Award, RotateCcw, X, Mic2, Sparkles, BookOpen, BookMarked, Settings, Trash2 } from 'lucide-react';
 
 export default function Sidebar({
   isOpen,
@@ -13,6 +13,8 @@ export default function Sidebar({
   userLevel,
   onChangeLevel,
   onResetChat,
+  onOpenSettings,
+  onOpenVocabulary,
   stats,
   uiLang = 'ar'
 }) {
@@ -186,14 +188,45 @@ export default function Sidebar({
           </div>
         </div>
 
-        {/* Sidebar Footer */}
-        <div className="border-t border-slate-800 p-3 bg-slate-950">
+        {/* Sidebar Footer with Mobile Quick Actions */}
+        <div className="border-t border-slate-800 p-3 bg-slate-950 space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            {onOpenVocabulary && (
+              <button
+                onClick={() => {
+                  onClose();
+                  onOpenVocabulary();
+                }}
+                className="flex items-center justify-center gap-1.5 rounded-xl bg-slate-900 border border-slate-800 py-2 text-xs font-semibold text-purple-300 hover:bg-slate-800 transition"
+              >
+                <BookMarked className="w-3.5 h-3.5 text-purple-400" />
+                <span>{isRtl ? 'المفردات' : 'Vault'}</span>
+              </button>
+            )}
+
+            {onOpenSettings && (
+              <button
+                onClick={() => {
+                  onClose();
+                  onOpenSettings();
+                }}
+                className="flex items-center justify-center gap-1.5 rounded-xl bg-slate-900 border border-slate-800 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800 hover:text-white transition"
+              >
+                <Settings className="w-3.5 h-3.5 text-indigo-400" />
+                <span>{isRtl ? 'الإعدادات' : 'Settings'}</span>
+              </button>
+            )}
+          </div>
+
           <button
-            onClick={onResetChat}
-            className="w-full flex items-center justify-center gap-2 rounded-xl bg-slate-900 border border-slate-800 py-2.5 text-xs font-semibold text-slate-300 hover:bg-rose-950/30 hover:border-rose-800/50 hover:text-rose-400 transition"
+            onClick={() => {
+              onClose();
+              onResetChat();
+            }}
+            className="w-full flex items-center justify-center gap-2 rounded-xl bg-rose-500/10 border border-rose-500/30 py-2.5 text-xs font-semibold text-rose-300 hover:bg-rose-500/20 transition shadow-sm"
           >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span>{isRtl ? 'بدء محادثة جديدة وتصفير الشات' : 'Start Fresh Session'}</span>
+            <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+            <span>{isRtl ? 'فسخ المحادثة والبدء من جديد' : 'Clear Chat & Start Fresh'}</span>
           </button>
         </div>
       </aside>
