@@ -11,6 +11,7 @@ export default function UserProfileModal({
   userLevel = 'Intermediate',
   onUserChange,
   onOpenPlacementTest,
+  onOpenAuth,
   uiLang = 'ar'
 }) {
   const isRtl = uiLang === 'ar';
@@ -176,11 +177,19 @@ export default function UserProfileModal({
           </button>
         </div>
 
-        {/* Footer: Sign Out */}
+        {/* Footer: Switch Account & Sign Out */}
         <div className="mt-5 pt-4 border-t border-slate-800 flex items-center justify-between">
-          <span className="text-[11px] text-slate-500">
-            Fluently Cloud v2.0
-          </span>
+          <button
+            onClick={() => {
+              onClose();
+              if (onOpenAuth) onOpenAuth();
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10 text-xs font-semibold transition"
+          >
+            <User className="w-3.5 h-3.5" />
+            <span>{isRtl ? 'تبديل أو تعديل الحساب' : 'Switch Account'}</span>
+          </button>
+
           <button
             onClick={handleSignOut}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 text-xs font-semibold transition"

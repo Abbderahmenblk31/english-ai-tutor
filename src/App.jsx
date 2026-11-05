@@ -395,6 +395,7 @@ export default function App() {
         userLevel={settings.userLevel || 'Intermediate'}
         onUserChange={(updatedUser) => setUser(updatedUser)}
         onOpenPlacementTest={() => setIsPlacementTestOpen(true)}
+        onOpenAuth={() => setIsAuthModalOpen(true)}
         uiLang={settings.uiLanguage}
       />
 

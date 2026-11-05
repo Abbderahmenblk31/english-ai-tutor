@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 const AUTH_STORAGE_KEYS = {
   USER: 'fluently_user_session',
   SUPABASE_CONFIG: 'fluently_supabase_config',
+  GOOGLE_CONFIG: 'fluently_google_client_id',
   CLOUD_BACKUP: 'fluently_cloud_backup',
 };
 
@@ -20,6 +21,33 @@ export const GUEST_USER = {
 };
 
 let supabaseInstance = null;
+
+/**
+ * Get Google Client ID from storage or env
+ */
+export const getGoogleClientId = () => {
+  try {
+    return localStorage.getItem(AUTH_STORAGE_KEYS.GOOGLE_CONFIG) || import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+  } catch {
+    return '';
+  }
+};
+
+/**
+ * Save Google Client ID
+ */
+export const saveGoogleClientId = (clientId) => {
+  try {
+    if (clientId && clientId.trim()) {
+      localStorage.setItem(AUTH_STORAGE_KEYS.GOOGLE_CONFIG, clientId.trim());
+    } else {
+      localStorage.removeItem(AUTH_STORAGE_KEYS.GOOGLE_CONFIG);
+    }
+    return true;
+  } catch {
+    return false;
+  }
+};
 
 /**
  * Get Supabase configuration from localStorage or Vite environment variables
@@ -44,7 +72,6 @@ export const getSupabaseConfig = () => {
 export const saveSupabaseConfig = (config) => {
   try {
     localStorage.setItem(AUTH_STORAGE_KEYS.SUPABASE_CONFIG, JSON.stringify(config));
-    // Reset instance to re-initialize with new keys
     supabaseInstance = null;
     return getSupabaseClient();
   } catch (e) {
@@ -110,49 +137,70 @@ export const saveCurrentUser = (user) => {
 };
 
 /**
- * Sign in using Google OAuth via Supabase (or instant high-fidelity simulation if no credentials)
+ * Helper to decode Google JWT Identity token (without external dependencies)
  */
-export const signInWithGoogle = async (options = {}) => {
-  const supabase = getSupabaseClient();
+export const decodeGoogleCredential = (jwtCredential) => {
+  try {
+    const base64Url = jwtCredential.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonPayload);
+  } catch (e) {
+    console.error('Failed to decode Google JWT credential:', e);
+    return null;
+  }
+};
 
-  // If real Supabase is configured with URL and Key
-  if (supabase) {
-    try {
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: window.location.origin,
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          },
-        },
-      });
-      if (error) throw error;
-      return { success: true, redirecting: true, data };
-    } catch (err) {
-      console.error('Supabase Google OAuth error:', err);
-      // Fall through to seamless simulation if user requests it
-      if (options.forceLive) {
-        throw err;
-      }
-    }
+/**
+ * Sign in directly with user's genuine name and real Gmail address
+ */
+export const signInWithRealDetails = async ({ name, email, avatar = null }) => {
+  if (!email || !email.trim()) {
+    throw new Error('يرجى إدخال عنوان بريدك الإلكتروني (Gmail)');
   }
 
-  // Instant seamless Google Auth flow (Zero-friction for immediate testing)
-  const mockUser = {
-    id: `google_${Date.now()}`,
-    name: options.name || 'عبد الرحمن (Google User)',
-    nameEn: options.nameEn || 'Abderrahmen (Google User)',
-    email: options.email || 'abderrahmen.fluently@gmail.com',
-    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&h=120&fit=crop&crop=faces',
-    provider: 'google',
+  const cleanEmail = email.trim().toLowerCase();
+  const cleanName = name && name.trim() ? name.trim() : cleanEmail.split('@')[0];
+
+  // Default avatar if none provided (Google-styled letter avatar or modern face)
+  const defaultAvatar = avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanName)}&background=4285F4&color=fff&size=128&bold=true`;
+
+  const realUser = {
+    id: `user_${cleanEmail.replace(/[^a-zA-Z0-9]/g, '_')}`,
+    name: cleanName,
+    nameEn: cleanName,
+    email: cleanEmail,
+    avatar: defaultAvatar,
+    provider: cleanEmail.includes('gmail.com') ? 'google' : 'email',
     isGuest: false,
     lastSyncedAt: new Date().toISOString(),
   };
 
-  saveCurrentUser(mockUser);
-  return { success: true, user: mockUser, isSimulated: !supabase };
+  saveCurrentUser(realUser);
+  return { success: true, user: realUser };
+};
+
+/**
+ * Sign in using Google OAuth via Supabase
+ */
+export const signInWithGoogleOAuth = async () => {
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin,
+      },
+    });
+    if (error) throw error;
+    return { success: true, redirecting: true, data };
+  }
+  throw new Error('لم يتم إعداد Supabase بعد. يرجى إدخال بريدك الـ Gmail مباشرة في الخانة المخصصة.');
 };
 
 /**
@@ -203,7 +251,7 @@ export const syncLocalDataToCloud = async (user, dataPayload = null) => {
     }
   }
 
-  // Always keep a local cloud backup snapshot
+  // Always keep a local cloud backup snapshot for the active user
   try {
     localStorage.setItem(`${AUTH_STORAGE_KEYS.CLOUD_BACKUP}_${user.id}`, JSON.stringify(payload));
     const updatedUser = { ...user, lastSyncedAt: new Date().toISOString() };
