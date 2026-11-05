@@ -47,6 +47,9 @@ You MUST ALWAYS respond with a VALID JSON object matching the following structur
       "example": "A natural example sentence using this word."
     }
   ],
+  "fluencyScore": 92, // An integer between 50 and 100 evaluating the grammatical fluency, confidence, and natural flow of the user's input
+  "fluencyFeedback": "Great natural rhythm! Good vocabulary selection.",
+  "fluencyFeedbackAr": "طلاقة ممتازة وتركيب جمل سليم مع تسلسل أفكار سلس ومترابط.",
   "pronunciationTips": [
     {
       "word": "word that non-native speakers often mispronounce",
@@ -518,6 +521,17 @@ function parseJsonResponse(rawText) {
     if (!Array.isArray(parsed.suggestedReplies)) {
       parsed.suggestedReplies = [];
     }
+    if (typeof parsed.fluencyScore !== 'number') {
+      parsed.fluencyScore = parsed.hasMistakes ? (parsed.corrections?.length > 2 ? 74 : 86) : 95;
+    }
+    if (!parsed.fluencyFeedback) {
+      parsed.fluencyFeedback = parsed.hasMistakes
+        ? "Good attempt! Review the grammar corrections to improve natural flow."
+        : "Excellent fluency! Your sentence is smooth and well-structured.";
+      parsed.fluencyFeedbackAr = parsed.hasMistakes
+        ? "محاولة جيدة! راجع الملاحظات النحوية لتحسين انسيابية الجملة."
+        : "طلاقة ممتازة! جملتك متناسقة وصحيحة نحوياً بنسبة عالية.";
+    }
     return parsed;
   } catch (err) {
     console.error("Failed to parse JSON response:", rawText);
@@ -530,7 +544,10 @@ function parseJsonResponse(rawText) {
       nativeAlternative: "",
       vocabularyBoost: [],
       pronunciationTips: [],
-      cefrLevel: "B2"
+      cefrLevel: "B2",
+      fluencyScore: 90,
+      fluencyFeedback: "Conversation flowing smoothly.",
+      fluencyFeedbackAr: "المحادثة تسير بسلاسة وطلاقة جيدة."
     };
   }
 }

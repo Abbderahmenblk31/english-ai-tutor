@@ -47,6 +47,16 @@ export default function CorrectionCard({
             </div>
           )}
 
+          {feedback.fluencyScore && (
+            <div className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold border ${
+              feedback.fluencyScore >= 85
+                ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                : 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+            }`}>
+              <span>🎯 {isRtl ? 'طلاقة التعبير:' : 'Fluency:'} {feedback.fluencyScore}%</span>
+            </div>
+          )}
+
           {cefrLevel && (
             <span className="rounded-md bg-indigo-500/20 px-2 py-0.5 text-[11px] font-bold text-indigo-300 border border-indigo-500/30">
               CEFR: {cefrLevel}
@@ -79,6 +89,16 @@ export default function CorrectionCard({
 
       {isExpanded && (
         <div className="mt-3 space-y-3.5 text-sm">
+          {/* Fluency Feedback Banner */}
+          {(feedback.fluencyFeedback || feedback.fluencyFeedbackAr) && (
+            <div className="rounded-xl bg-slate-950/70 p-2.5 border border-slate-800 text-xs text-slate-300 flex items-center gap-2">
+              <span className="text-emerald-400 font-bold text-sm shrink-0">✨</span>
+              <span className="leading-relaxed">
+                {showArabicExplanation && feedback.fluencyFeedbackAr ? feedback.fluencyFeedbackAr : feedback.fluencyFeedback}
+              </span>
+            </div>
+          )}
+
           {/* Corrections List */}
           {hasMistakes && corrections.length > 0 && (
             <div className="space-y-2.5">

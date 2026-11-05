@@ -1,5 +1,5 @@
 import React from 'react';
-import { Flame, Sparkles, BookMarked, Settings, Volume2, VolumeX, Globe, Menu, ShieldCheck, Trash2 } from 'lucide-react';
+import { Flame, Sparkles, BookMarked, Settings, Volume2, VolumeX, Globe, Menu, ShieldCheck, Trash2, Cloud, User, FileText, Award } from 'lucide-react';
 
 export default function Header({
   stats,
@@ -12,6 +12,11 @@ export default function Header({
   savedWordsCount = 0,
   activePersona,
   onToggleLanguage,
+  user,
+  onOpenAuth,
+  onOpenProfile,
+  onOpenLessonSummary,
+  onOpenPlacementTest
 }) {
   const isRtl = settings.uiLanguage === 'ar';
 
@@ -34,7 +39,7 @@ export default function Header({
   const providerLabel = getProviderInfo();
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 sm:h-16 w-full items-center justify-between border-b border-slate-800 bg-slate-950/90 px-2.5 sm:px-4 backdrop-blur-xl transition-all">
+    <header className="sticky top-0 z-30 flex h-14 sm:h-16 w-full items-center justify-between border-b border-slate-800 bg-slate-950/90 px-2 sm:px-4 backdrop-blur-xl transition-all">
       {/* Left side: Menu button + Logo */}
       <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
         <button
@@ -96,16 +101,26 @@ export default function Header({
         </div>
       </div>
 
-      {/* Right side: Provider badge, Vocabulary Vault, Sound, Language, Settings */}
+      {/* Right side: Actions, Vocabulary, Google Auth / Profile */}
       <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
-        {/* Provider Indicator (Desktop only) */}
+        {/* Lesson Summary Export Button */}
         <button
-          onClick={onOpenSettings}
-          className={`hidden lg:flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium border transition hover:opacity-80 ${providerLabel.color}`}
-          title="انقر لتعديل إعدادات الذكاء الاصطناعي والمفاتيح"
+          onClick={onOpenLessonSummary}
+          className="hidden sm:flex items-center gap-1 rounded-xl bg-slate-900 border border-slate-800 px-2 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800 hover:text-white transition"
+          title={isRtl ? 'عرض وتصدير ملخص الدرس' : 'Lesson Study Summary'}
         >
-          <span className="h-1.5 w-1.5 rounded-full bg-current animate-ping" />
-          <span>{providerLabel.name}</span>
+          <FileText className="w-4 h-4 text-indigo-400" />
+          <span className="hidden xl:inline">{isRtl ? 'الملخص' : 'Summary'}</span>
+        </button>
+
+        {/* CEFR Level Assessment Shortcut */}
+        <button
+          onClick={onOpenPlacementTest}
+          className="hidden xl:flex items-center gap-1 rounded-xl bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 text-xs font-bold text-amber-300 hover:bg-amber-500/20 transition"
+          title={isRtl ? 'إجراء اختبار تحديد المستوى' : 'CEFR Placement Test'}
+        >
+          <Award className="w-3.5 h-3.5 text-amber-400" />
+          <span>{settings.userLevel || 'Intermediate'}</span>
         </button>
 
         {/* Vocabulary Vault Button */}
@@ -146,7 +161,7 @@ export default function Header({
           <span className="text-[11px]">{settings.uiLanguage === 'ar' ? 'EN' : 'عربي'}</span>
         </button>
 
-        {/* Clear Chat Button (Visible on screens from tablet up; on mobile it is in the chat banner and drawer!) */}
+        {/* Clear Chat Button (Tablet and Desktop) */}
         <button
           onClick={onResetChat}
           className="hidden sm:flex items-center gap-1 rounded-xl bg-slate-900 border border-slate-800 px-2.5 py-2 text-xs font-semibold text-rose-400 hover:bg-rose-500/15 hover:border-rose-500/40 hover:text-rose-300 transition shadow-sm"
@@ -164,6 +179,43 @@ export default function Header({
         >
           <Settings className="w-4 h-4" />
         </button>
+
+        {/* Google Auth / User Profile Button (Output of Session 2) */}
+        {user && !user.isGuest ? (
+          <button
+            onClick={onOpenProfile}
+            className="flex items-center gap-1.5 rounded-xl bg-slate-900 border border-indigo-500/40 hover:border-indigo-400 p-1 sm:px-2 sm:py-1 transition shadow-sm"
+            title={isRtl ? 'حسابك الشخصي والمزامنة السحابية' : 'User Profile & Cloud Sync'}
+          >
+            <div className="relative">
+              <img
+                src={user.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=50&h=50&fit=crop&crop=faces'}
+                alt={user.name}
+                className="w-6 h-6 rounded-full object-cover border border-indigo-400/80"
+              />
+              <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-emerald-400 ring-1 ring-slate-950" />
+            </div>
+            <span className="text-xs font-bold text-slate-200 hidden sm:inline max-w-[80px] truncate">
+              {user.name.split(' ')[0]}
+            </span>
+            <Cloud className="w-3.5 h-3.5 text-indigo-400 hidden md:inline" />
+          </button>
+        ) : (
+          <button
+            onClick={onOpenAuth}
+            className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-red-500/10 via-amber-500/10 to-blue-500/10 border border-slate-700 hover:border-slate-500 px-2 sm:px-2.5 py-1.5 text-xs font-bold text-white transition shadow-sm hover:scale-[1.02] active:scale-[0.98]"
+            title={isRtl ? 'تسجيل الدخول عبر Google للمزامنة السحابية' : 'Sign in with Google for Cloud Sync'}
+          >
+            {/* Google G Icon */}
+            <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24">
+              <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.66v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.15z" />
+              <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.27v3.14C3.26 21.36 7.33 24 12 24z" />
+              <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.59H1.27C.46 8.21 0 10.05 0 12s.46 3.79 1.27 5.41l4.01-3.14z" />
+              <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.27 6.59l4.01 3.14c.95-2.83 3.6-4.98 6.72-4.98z" />
+            </svg>
+            <span className="hidden sm:inline">{isRtl ? 'دخول Google' : 'Sign in'}</span>
+          </button>
+        )}
       </div>
     </header>
   );

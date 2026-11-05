@@ -1,17 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
-import { Trash2, CheckCircle2 } from 'lucide-react';
+import { Trash2, CheckCircle2, Cloud } from 'lucide-react';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
 import ChatWindow from './components/ChatWindow';
 import InputArea from './components/InputArea';
 import SettingsModal from './components/SettingsModal';
 import VocabularyModal from './components/VocabularyModal';
+import AuthModal from './components/AuthModal';
+import UserProfileModal from './components/UserProfileModal';
+import PlacementTestModal from './components/PlacementTestModal';
+import LessonSummaryModal from './components/LessonSummaryModal';
 
 import { PERSONAS } from './data/personas';
 import { TOPICS } from './data/topics';
 import { sendMessageToAI } from './services/aiService';
 import { speechService } from './services/speechService';
+import {
+  getCurrentUser,
+  syncLocalDataToCloud
+} from './services/authService';
 import {
   getSettings,
   saveSettings,
@@ -29,6 +37,7 @@ export default function App() {
   const [settings, setSettings] = useState(getSettings());
   const [stats, setStats] = useState(getStats());
   const [savedWords, setSavedWords] = useState(getVocabularyVault());
+  const [user, setUser] = useState(getCurrentUser());
 
   const [activePersona, setActivePersona] = useState(PERSONAS[0]);
   const [activeTopic, setActiveTopic] = useState(TOPICS[0]);
@@ -43,6 +52,13 @@ export default function App() {
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
   const [resetToast, setResetToast] = useState(false);
   const [inputPrefill, setInputPrefill] = useState('');
+
+  // New Modals from Sessions 1 & 2
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isPlacementTestOpen, setIsPlacementTestOpen] = useState(false);
+  const [isLessonSummaryOpen, setIsLessonSummaryOpen] = useState(false);
+  const [cloudToast, setCloudToast] = useState('');
 
   const chatKey = `${activePersona.id}_${activeTopic.id}`;
 
@@ -153,6 +169,11 @@ export default function App() {
         });
       }
 
+      // Background cloud sync for logged in users
+      if (user && !user.isGuest) {
+        syncLocalDataToCloud(user).catch(() => {});
+      }
+
       // Auto speak if enabled
       if (settings.autoSpeak && assistantMessage.content) {
         handlePlaySpeech(assistantMsgId, assistantMessage.content, activePersona);
@@ -176,11 +197,17 @@ export default function App() {
   const handleSaveWord = (wordItem) => {
     const updated = saveVocabularyWord(wordItem);
     setSavedWords(updated);
+    if (user && !user.isGuest) {
+      syncLocalDataToCloud(user).catch(() => {});
+    }
   };
 
   const handleRemoveWord = (wordId) => {
     const updated = removeVocabularyWord(wordId);
     setSavedWords(updated);
+    if (user && !user.isGuest) {
+      syncLocalDataToCloud(user).catch(() => {});
+    }
   };
 
   const handleResetChat = () => {
@@ -223,6 +250,23 @@ export default function App() {
     setSettings(updated);
   };
 
+  const handleLoginSuccess = async (newUser) => {
+    setUser(newUser);
+    const toast = isRtl
+      ? `مرحباً بك ${newUser.name}! تم دمج بياناتك وحفظها سحابياً بنجاح ☁️`
+      : `Welcome ${newUser.name}! Your data is safely synced to the cloud ☁️`;
+    setCloudToast(toast);
+    setTimeout(() => setCloudToast(''), 4500);
+
+    confetti({
+      particleCount: 90,
+      spread: 70,
+      origin: { y: 0.6 }
+    });
+
+    await syncLocalDataToCloud(newUser);
+  };
+
   const isRtl = settings.uiLanguage === 'ar';
 
   return (
@@ -251,6 +295,11 @@ export default function App() {
         onOpenVocabulary={() => setIsVocabOpen(true)}
         stats={stats}
         uiLang={settings.uiLanguage}
+        user={user}
+        onOpenAuth={() => setIsAuthModalOpen(true)}
+        onOpenProfile={() => setIsProfileModalOpen(true)}
+        onOpenPlacementTest={() => setIsPlacementTestOpen(true)}
+        onOpenLessonSummary={() => setIsLessonSummaryOpen(true)}
       />
 
       {/* Main Content Area */}
@@ -267,6 +316,11 @@ export default function App() {
           savedWordsCount={savedWords.length}
           activePersona={activePersona}
           onToggleLanguage={handleToggleLanguage}
+          user={user}
+          onOpenAuth={() => setIsAuthModalOpen(true)}
+          onOpenProfile={() => setIsProfileModalOpen(true)}
+          onOpenLessonSummary={() => setIsLessonSummaryOpen(true)}
+          onOpenPlacementTest={() => setIsPlacementTestOpen(true)}
         />
 
         {/* Chat Feed */}
@@ -323,6 +377,47 @@ export default function App() {
         uiLang={settings.uiLanguage}
       />
 
+      {/* Google Auth Modal (Session 2 Output) */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        onLoginSuccess={handleLoginSuccess}
+        uiLang={settings.uiLanguage}
+      />
+
+      {/* User Profile & Cloud Sync Modal (Session 2 Output) */}
+      <UserProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        user={user}
+        stats={stats}
+        savedWordsCount={savedWords.length}
+        userLevel={settings.userLevel || 'Intermediate'}
+        onUserChange={(updatedUser) => setUser(updatedUser)}
+        onOpenPlacementTest={() => setIsPlacementTestOpen(true)}
+        uiLang={settings.uiLanguage}
+      />
+
+      {/* CEFR Placement Diagnostic Test Modal (Session 1 Output) */}
+      <PlacementTestModal
+        isOpen={isPlacementTestOpen}
+        onClose={() => setIsPlacementTestOpen(false)}
+        currentLevel={settings.userLevel || 'Intermediate'}
+        onSaveLevel={(newLevel) => handleUpdateSettings({ userLevel: newLevel })}
+        uiLang={settings.uiLanguage}
+      />
+
+      {/* Lesson Summary & Notes Export Modal (Session 1 Output) */}
+      <LessonSummaryModal
+        isOpen={isLessonSummaryOpen}
+        onClose={() => setIsLessonSummaryOpen(false)}
+        messages={messages}
+        activePersona={activePersona}
+        activeTopic={activeTopic}
+        savedWords={savedWords}
+        uiLang={settings.uiLanguage}
+      />
+
       {/* Reset / Clear Chat Confirmation Modal */}
       {isResetConfirmOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
@@ -363,6 +458,14 @@ export default function App() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Cloud Sync Toast */}
+      {cloudToast && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-indigo-950/95 border border-indigo-500/50 text-indigo-200 shadow-2xl backdrop-blur-md text-xs font-bold animate-in fade-in slide-in-from-top-3">
+          <Cloud className="w-4 h-4 text-indigo-400 animate-pulse" />
+          <span>{cloudToast}</span>
         </div>
       )}
 
