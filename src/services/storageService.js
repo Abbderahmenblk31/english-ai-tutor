@@ -13,7 +13,7 @@ const DEFAULT_SETTINGS = {
   ollamaModel: 'llama3:latest',
   openaiKey: '',
   openaiModel: 'gpt-4o-mini',
-  geminiModel: 'gemini-3.1-pro-preview',
+  geminiModel: 'gemini-2.5-flash',
   groqModel: 'llama-3.3-70b-versatile',
   accent: 'en-US',
   speechRate: 0.95,
@@ -28,9 +28,10 @@ export const getSettings = () => {
   try {
     const data = localStorage.getItem(STORAGE_KEYS.SETTINGS);
     const parsed = data ? { ...DEFAULT_SETTINGS, ...JSON.parse(data) } : DEFAULT_SETTINGS;
-    // Auto-migrate sunset models
-    if (!parsed.geminiModel || parsed.geminiModel === 'gemini-2.0-flash' || parsed.geminiModel === 'gemini-2.5-pro' || parsed.geminiModel === 'gemini-1.5-flash') {
-      parsed.geminiModel = 'gemini-3.1-pro-preview';
+    // Auto-migrate sunset/deprecated models
+    const deprecated = ['gemini-2.0-flash', 'gemini-2.5-pro', 'gemini-1.5-pro-latest', 'gemini-1.5-flash-latest'];
+    if (!parsed.geminiModel || deprecated.includes(parsed.geminiModel)) {
+      parsed.geminiModel = 'gemini-2.5-flash';
     }
     return parsed;
   } catch {

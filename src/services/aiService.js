@@ -65,20 +65,20 @@ export const DEPRECATED_GEMINI_MODELS = [
   'gemini-2.0-flash',
   'gemini-2.5-pro',
   'gemini-2.0-flash-exp',
-  'gemini-1.0-pro'
+  'gemini-1.0-pro',
+  'gemini-1.5-flash-latest',
+  'gemini-1.5-pro-latest'
 ];
 
 export const GEMINI_MODEL_PRIORITY = [
-  'gemini-3.1-pro-preview',
+  'gemini-2.5-flash',
+  'gemini-1.5-flash',
   'gemini-3.5-flash-lite',
   'gemini-3.8-flash',
-  'gemini-2.5-flash',
-  'gemini-2.5-flash-lite',
-  'gemini-1.5-flash',
-  'gemini-1.5-flash-8b',
   'gemini-1.5-pro',
-  'gemini-1.5-flash-latest',
-  'gemini-1.5-pro-latest'
+  'gemini-3.1-pro-preview',
+  'gemini-2.5-flash-lite',
+  'gemini-1.5-flash-8b'
 ];
 
 /**
@@ -342,10 +342,31 @@ export async function sendMessageToAI({
   };
 }
 
-// Call Google Gemini API with dynamic model failover
+// Call Google Gemini API with dynamic model failover & discovery
 async function callGeminiAPI({ apiKey, model, systemPrompt, messages }) {
+  // 1. Try to discover live models for this key dynamically from Google API
+  let activeModels = [];
+  try {
+    const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+    if (listRes.ok) {
+      const listData = await listRes.json();
+      if (Array.isArray(listData.models)) {
+        activeModels = listData.models
+          .filter(m => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes('generateContent'))
+          .map(m => m.name.replace(/^models\//, ''))
+          .filter(m => !DEPRECATED_GEMINI_MODELS.includes(m));
+      }
+    }
+  } catch (e) {
+    console.warn('Could not query dynamic models list:', e);
+  }
+
+  // 2. Build prioritized candidate queue (prioritize verified 2.5-flash and 1.5-flash)
   const queue = [
-    model || 'gemini-3.1-pro-preview',
+    model,
+    'gemini-2.5-flash',
+    'gemini-1.5-flash',
+    ...activeModels,
     ...GEMINI_MODEL_PRIORITY
   ].filter((m, i, arr) => 
     Boolean(m) &&
@@ -386,16 +407,17 @@ async function callGeminiAPI({ apiKey, model, systemPrompt, messages }) {
           throw new Error('مفتاح الـ API غير صالح. يرجى التأكد من نسخه بدقة من Google AI Studio.');
         }
 
-        // For any model-specific issue (high demand 503, deprecated/unavailable, 404, 429),
-        // fallback immediately to the next candidate model in the queue!
-        console.warn(`Model ${currentModel} busy or unavailable (${errMsg}). Falling back to next model...`);
+        console.warn(`Model ${currentModel} error (${errMsg}). Falling back to next candidate...`);
         lastError = new Error(errMsg);
         continue;
       }
 
       const data = await response.json();
       const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!rawText) throw new Error("لم يتم استلام أي نص من Gemini API");
+      if (!rawText) {
+        console.warn(`Model ${currentModel} returned empty text. Trying next model...`);
+        continue;
+      }
 
       const parsed = parseJsonResponse(rawText);
       parsed.usedModel = currentModel;
@@ -403,14 +425,15 @@ async function callGeminiAPI({ apiKey, model, systemPrompt, messages }) {
     } catch (err) {
       lastError = err;
       const msg = err.message || '';
-      if (msg.includes('high demand') || msg.includes('no longer available') || msg.includes('503')) {
-        continue;
+      if (msg.includes('API_KEY_INVALID') || msg.includes('API key not valid')) {
+        throw err;
       }
-      throw err;
+      console.warn(`Model ${currentModel} execution error:`, err);
+      continue;
     }
   }
 
-  throw lastError;
+  throw new Error(`تعذر الاتصال بنماذج Gemini (${lastError?.message || 'يرجى التحقق من اتصالك بالإنترنت وصلاحية المفتاح'}).`);
 }
 
 // Call Groq API
